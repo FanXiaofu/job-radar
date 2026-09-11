@@ -1,19 +1,23 @@
-"""SQLite 存取层：建表、连接、常用查询。全部使用参数化查询。"""
+"""SQLite 存取层：建表、连接、常用查询。全部使用参数化查询。
+
+时间口径：全库统一存北京时间（Asia/Shanghai），与调度时区、用户认知一致。
+"""
 import sqlite3
 import threading
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from config import settings
 
 _lock = threading.Lock()
+_BJ_TZ = timezone(timedelta(hours=8))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS companies (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
     category TEXT,               -- central=央国企 / private=民企 / foreign=外企
-    category_source TEXT,        -- list=名录匹配 / llm=模型判断
+    category_source TEXT,        -- list=名录匹配 / llm=模型判断 / default=兜底
     confidence REAL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -57,21 +61,20 @@ CREATE TABLE IF NOT EXISTS raw_items (
     source TEXT NOT NULL,
     url TEXT,
     raw_text TEXT,
-    processed INTEGER DEFAULT 0,
     created_at TEXT NOT NULL
 );
 """
 
 
-def utcnow() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+def now_str() -> str:
+    """当前北京时间，全库统一时间戳口径。"""
+    return datetime.now(_BJ_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
 
 @contextmanager
 def get_conn():
     conn = sqlite3.connect(settings.db_path, timeout=15)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys=ON")
     try:
         yield conn
         conn.commit()
@@ -85,4 +88,7 @@ def get_conn():
 def init_db() -> None:
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     with _lock, get_conn() as conn:
+        # WAL：APScheduler 后台线程写 + uvicorn 线程池读并发时避免锁等待
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=15000")
         conn.executescript(SCHEMA)

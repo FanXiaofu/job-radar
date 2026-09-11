@@ -35,11 +35,13 @@ class CompanyClassifier:
         default：名录与 LLM 均未命中时的兜底类型。可按数据源传入领域先验
         （如国聘平台以央国企为主传 "central"），通用场景保持 "private"。
         """
+        company_l = company.lower()
         for entry in self._central:
             if entry in company or company in entry:
                 return "central", "list", 1.0
         for entry in self._foreign:
-            if entry.lower() in company.lower() or company.lower() in entry.lower():
+            entry_l = entry.lower()
+            if entry_l in company_l or company_l in entry_l:
                 return "foreign", "list", 1.0
         result = self._classify_by_llm(company)
         if result:

@@ -1,8 +1,6 @@
 """国聘网数据源：POST /api/jobs/v1/recom-job，返回结构化岗位，直接产出 parsed 条目。"""
 import logging
 
-import httpx
-
 from config import settings
 from crawler.base import USER_AGENT, BaseSource, RawItem
 
@@ -10,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 API_URL = "https://gp-api.iguopin.com/api/jobs/v1/recom-job"
 JOB_DETAIL_URL = "https://www.iguopin.com/job/detail/{job_id}"
+PAGE_SIZE = 20
 
 # 面向计算机/AI 方向的搜索关键词；None 表示默认推荐池
 KEYWORDS = ["算法", "软件开发", "人工智能", "数据分析", "测试开发", None]
@@ -22,21 +21,21 @@ class IguopinSource(BaseSource):
 
     def crawl(self) -> list[RawItem]:
         items: list[RawItem] = []
+        seen_ids: set[str] = set()  # 跨关键词共享，避免重复条目虚增统计
         for keyword in KEYWORDS:
-            items += self._crawl_keyword(keyword)
+            items += self._crawl_keyword(keyword, seen_ids)
         logger.info("[iguopin] 共采集 %d 条", len(items))
         return items
 
-    def _crawl_keyword(self, keyword: str | None) -> list[RawItem]:
+    def _crawl_keyword(self, keyword: str | None, seen_ids: set[str]) -> list[RawItem]:
         items: list[RawItem] = []
-        seen_ids: set[str] = set()
         for page in range(1, MAX_PAGES_PER_QUERY + 1):
             try:
                 data = self._request(keyword, page)
             except Exception as e:
                 logger.error("[iguopin] keyword=%s page=%d 请求失败: %s", keyword, page, e)
                 break
-            job_list = data.get("list", [])
+            job_list = data.get("list") or []
             if not job_list:
                 break
             for job in job_list:
@@ -45,26 +44,23 @@ class IguopinSource(BaseSource):
                     continue
                 seen_ids.add(job_id)
                 items.append(self._to_item(job))
-            if page * data.get("page_size", 20) >= data.get("total", 0):
+            total = data.get("total") or 0
+            page_size = data.get("page_size") or PAGE_SIZE
+            if total and page * page_size >= total:
                 break
         return items
 
     def _request(self, keyword: str | None, page: int) -> dict:
-        search: dict = {"page": page, "page_size": 20}
+        search: dict = {"page": page, "page_size": PAGE_SIZE}
         if keyword:
             search["keyword"] = keyword
         body = {"search": search,
                 "recom": {"update_time": True, "company_nature": True, "hot_job": True}}
-        headers = {"User-Agent": USER_AGENT, "version": "5.2.300",
-                   "Origin": "https://www.iguopin.com",
+        headers = {"version": "5.2.300", "Origin": "https://www.iguopin.com",
                    "Referer": "https://www.iguopin.com/job"}
-        resp = httpx.post(API_URL, json=body, headers=headers,
-                          timeout=settings.request_timeout)
-        resp.raise_for_status()
-        payload = resp.json()
+        payload = self.post(API_URL, json_body=body, headers=headers)
         if payload.get("code") != 200:
             raise RuntimeError(f"API 返回异常: {payload.get('code')} {payload.get('msg')}")
-        self._throttle()
         return payload["data"]
 
     def _to_item(self, job: dict) -> RawItem:

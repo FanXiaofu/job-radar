@@ -25,6 +25,9 @@ def normalize(value: str) -> str:
 
 def main() -> None:
     samples = load_samples()
+    if not samples:
+        print("评测集为空，请在 eval/golden_samples.jsonl 中添加样本")
+        return
     extractor = JobExtractor()
     field_hits = {f: 0 for f in FIELDS}
     full_hits = 0
@@ -37,7 +40,7 @@ def main() -> None:
         ok_fields = {}
         for f in FIELDS:
             expect = normalize(s["expect"].get(f, ""))
-            actual = normalize(pred.get(f, ""))[: len(expect) * 2] if expect else normalize(pred.get(f, ""))
+            actual = normalize(str(pred.get(f, "")))[: len(expect) * 2] if expect else normalize(str(pred.get(f, "")))
             # apply_url 只比较是否包含预期路径（LLM 可能补全域名）
             hit = (expect in actual) if expect else (actual == "")
             ok_fields[f] = hit

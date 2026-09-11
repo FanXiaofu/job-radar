@@ -32,10 +32,11 @@ class SearchAgent:
             logger.info("未配置搜索 API（SEARCH_PROVIDER/SEARCH_API_KEY），跳过搜索 Agent")
             return []
         items: list[RawItem] = []
+        # 轮转取样：模板与岗位方向均匀组合，避免截断导致某组模板永不执行
+        groups = [[tpl.format(role=r) for r in ROLES] for tpl in QUERY_TEMPLATES]
         queries: list[str] = []
-        for tpl in QUERY_TEMPLATES:
-            queries += [tpl.format(role=r) for r in ROLES]
-        queries = queries[:max_queries]
+        for i in range(max_queries):
+            queries.append(groups[i % len(groups)][(i // len(groups)) % len(groups)])
         for q in queries:
             try:
                 hits = self._search(q)

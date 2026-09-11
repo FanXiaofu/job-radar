@@ -22,17 +22,16 @@ TYPE_LABELS = {"campus": "校招", "social": "社招"}
 def index(request: Request, category: str = "", recruit_type: str = "",
           keyword: str = "", page: int = 1):
     page_size = 20
-    jobs = repository.list_jobs(category or None, recruit_type or None,
-                                keyword or None, limit=page_size,
-                                offset=(page - 1) * page_size)
+    rows, total = repository.list_jobs(category or None, recruit_type or None,
+                                       keyword or None, limit=page_size,
+                                       offset=(page - 1) * page_size)
     stats = repository.count_jobs()
     rows = [dict(j) | {"category_label": CATEGORY_LABELS.get(j["category"], "未知"),
                        "type_label": TYPE_LABELS.get(j["recruit_type"], "未知")}
-            for j in jobs]
-    total = stats["total"]
+            for j in rows]
     pages = max(1, (total + page_size - 1) // page_size)
     return templates.TemplateResponse(request, "index.html", {
-        "jobs": rows, "stats": stats, "page": page, "pages": pages,
+        "jobs": rows, "stats": stats, "page": page, "pages": pages, "total": total,
         "category": category, "recruit_type": recruit_type, "keyword": keyword,
         "category_labels": CATEGORY_LABELS, "type_labels": TYPE_LABELS,
     })

@@ -48,6 +48,23 @@ class BaseSource(ABC):
                     raise
                 time.sleep(2 * attempt)
 
+    def post(self, url: str, *, json_body: dict | None = None,
+             form: dict | None = None, headers: dict | None = None) -> dict:
+        """带限速与重试的 POST，返回 JSON。API 型数据源统一走这里。"""
+        merged = {"User-Agent": USER_AGENT, **(headers or {})}
+        for attempt in range(1, settings.max_retries + 2):
+            self._throttle()
+            try:
+                resp = httpx.post(url, json=json_body, data=form, headers=merged,
+                                  timeout=settings.request_timeout)
+                resp.raise_for_status()
+                return resp.json()
+            except (httpx.HTTPError, ValueError) as e:
+                logger.warning("[%s] POST %s 失败（第 %d 次）: %s", self.name, url, attempt, e)
+                if attempt > settings.max_retries:
+                    raise
+                time.sleep(2 * attempt)
+
     def _throttle(self) -> None:
         elapsed = time.monotonic() - self._last_request_at
         if elapsed < settings.request_delay:

@@ -18,6 +18,7 @@ def get_sources() -> list:
             instance = cls()
             if isinstance(instance, BaseSource):
                 sources.append(instance)
-        except ImportError as e:
+        except Exception as e:
+            # 单源不可用不影响其他源与整轮采集
             logger.warning("数据源 %s 不可用: %s", module_name, e)
     return sources

@@ -68,6 +68,11 @@ class JobExtractor:
             if not isinstance(data.get("title"), str) or not data.get("company_name"):
                 self._last_error = "缺少 company_name 或 title"
                 return None
+            # 补齐全部字段为字符串，避免下游入库时绑定参数缺失
+            for f in ("company_name", "title", "recruit_type", "requirements",
+                      "location", "apply_url", "deadline"):
+                v = data.get(f)
+                data[f] = v if isinstance(v, str) else ("" if v is None else str(v))
             return data
         except (json.JSONDecodeError, KeyError) as e:
             self._last_error = f"JSON 解析失败: {e}"

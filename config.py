@@ -13,6 +13,13 @@ def _env(key: str, default: str = "") -> str:
     return os.getenv(key, default).strip()
 
 
+def _env_int(key: str, default: int) -> int:
+    try:
+        return int(_env(key, str(default)))
+    except ValueError:
+        return default
+
+
 @dataclass
 class Settings:
     # LLM
@@ -26,10 +33,10 @@ class Settings:
 
     # 运行
     db_path: Path = field(default_factory=lambda: PROJECT_ROOT / _env("DB_PATH", "data/job.db"))
-    schedule_hour: int = field(default_factory=lambda: int(_env("SCHEDULE_HOUR", "9")))
-    schedule_minute: int = field(default_factory=lambda: int(_env("SCHEDULE_MINUTE", "0")))
+    schedule_hour: int = field(default_factory=lambda: _env_int("SCHEDULE_HOUR", 9))
+    schedule_minute: int = field(default_factory=lambda: _env_int("SCHEDULE_MINUTE", 0))
     web_host: str = field(default_factory=lambda: _env("WEB_HOST", "127.0.0.1"))
-    web_port: int = field(default_factory=lambda: int(_env("WEB_PORT", "8000")))
+    web_port: int = field(default_factory=lambda: _env_int("WEB_PORT", 8000))
 
     # 爬虫行为
     request_timeout: float = 20.0

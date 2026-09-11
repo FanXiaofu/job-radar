@@ -7,15 +7,18 @@
 import argparse
 import logging
 import sys
+from pathlib import Path
 
-from config import settings
+from config import settings, PROJECT_ROOT
 from db.database import init_db
 
+LOG_DIR = PROJECT_ROOT / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     handlers=[logging.StreamHandler(),
-              logging.FileHandler("logs/app.log", encoding="utf-8")],
+              logging.FileHandler(LOG_DIR / "app.log", encoding="utf-8")],
 )
 logger = logging.getLogger("main")
 
@@ -42,7 +45,8 @@ def run_serve() -> None:
     scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
     scheduler.add_job(run_crawl, "cron",
                       hour=settings.schedule_hour, minute=settings.schedule_minute,
-                      id="daily_crawl", max_instances=1)
+                      id="daily_crawl", max_instances=1,
+                      misfire_grace_time=3600, coalesce=True)
     scheduler.start()
     logger.info("定时采集已启动：每天 %02d:%02d", settings.schedule_hour, settings.schedule_minute)
     uvicorn.run("app.main:app", host=settings.web_host, port=settings.web_port)
