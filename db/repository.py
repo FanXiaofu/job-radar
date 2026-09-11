@@ -4,9 +4,6 @@ import sqlite3
 
 from db.database import get_conn, now_str
 
-JOB_COLUMNS = ("company_name", "title", "recruit_type", "category", "requirements",
-               "location", "apply_url", "source", "source_url")
-
 
 def _norm(v: str | None) -> str:
     return (v or "").strip().lower()

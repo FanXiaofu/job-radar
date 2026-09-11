@@ -61,9 +61,9 @@
 </main>
 
 <nav class="pager">
-  {% if page > 1 %}<a href="/?category={{ category }}&recruit_type={{ recruit_type }}&keyword={{ keyword | urlencode }}&page={{ page - 1 }}">上一页</a>{% endif %}
+  {% if page > 1 %}<a href="/?category={{ category | urlencode }}&recruit_type={{ recruit_type | urlencode }}&keyword={{ keyword | urlencode }}&page={{ page - 1 }}">上一页</a>{% endif %}
   <span>第 {{ page }} / {{ pages }} 页 · 共 {{ total }} 条</span>
-  {% if page < pages %}<a href="/?category={{ category }}&recruit_type={{ recruit_type }}&keyword={{ keyword | urlencode }}&page={{ page + 1 }}">下一页</a>{% endif %}
+  {% if page < pages %}<a href="/?category={{ category | urlencode }}&recruit_type={{ recruit_type | urlencode }}&keyword={{ keyword | urlencode }}&page={{ page + 1 }}">下一页</a>{% endif %}
 </nav>
 
 <footer>秋招雷达 · 数据来自公开渠道，投递请以官方页面为准</footer>

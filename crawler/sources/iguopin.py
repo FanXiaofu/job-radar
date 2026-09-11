@@ -1,7 +1,6 @@
 """国聘网数据源：POST /api/jobs/v1/recom-job，返回结构化岗位，直接产出 parsed 条目。"""
 import logging
 
-from config import settings
 from crawler.base import USER_AGENT, BaseSource, RawItem
 
 logger = logging.getLogger(__name__)
@@ -43,7 +42,10 @@ class IguopinSource(BaseSource):
                 if not job_id or job_id in seen_ids:
                     continue
                 seen_ids.add(job_id)
-                items.append(self._to_item(job))
+                try:
+                    items.append(self._to_item(job))
+                except Exception as e:
+                    logger.warning("[iguopin] 条目解析失败 id=%s: %s", job_id, e)
             total = data.get("total") or 0
             page_size = data.get("page_size") or PAGE_SIZE
             if total and page * page_size >= total:

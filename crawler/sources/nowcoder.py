@@ -89,8 +89,7 @@ class NowcoderSource(BaseSource):
         name = ""
         url = COMPANY_PAGE_URL.format(company_id=company_id)
         try:
-            resp = httpx.get(url, headers={"User-Agent": USER_AGENT},
-                             timeout=settings.request_timeout, follow_redirects=True)
+            resp = self.fetch(url)  # 复用 BaseSource 的限速与重试
             m = re.search(r"<title>([^<]*)</title>", resp.text)
             if m:
                 tm = COMPANY_TITLE_RE.match(m.group(1).strip())
