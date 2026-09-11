@@ -35,7 +35,16 @@ RETRY_PROMPT = """上次输出不是合法 JSON 或缺少必需字段：{error}
 
 class JobExtractor:
     def __init__(self):
-        self.client = OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url)
+        self._client = None
+
+    @property
+    def client(self) -> OpenAI:
+        # 惰性创建：结构化源走不到 LLM，无 Key 时也不应报错
+        if self._client is None:
+            if not settings.llm_enabled:
+                raise RuntimeError("未配置 LLM_API_KEY")
+            self._client = OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url)
+        return self._client
 
     def extract(self, raw_text: str) -> dict | None:
         if not settings.llm_enabled:

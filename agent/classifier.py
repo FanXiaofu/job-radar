@@ -29,8 +29,12 @@ class CompanyClassifier:
         self._foreign = _load_list("foreign_companies.txt")
         self._llm = None
 
-    def classify(self, company: str) -> tuple[str, str, float]:
-        """返回 (category, source, confidence)。source: list / llm / default"""
+    def classify(self, company: str, default: str = "private") -> tuple[str, str, float]:
+        """返回 (category, source, confidence)。source: list / llm / default
+
+        default：名录与 LLM 均未命中时的兜底类型。可按数据源传入领域先验
+        （如国聘平台以央国企为主传 "central"），通用场景保持 "private"。
+        """
         for entry in self._central:
             if entry in company or company in entry:
                 return "central", "list", 1.0
@@ -40,8 +44,7 @@ class CompanyClassifier:
         result = self._classify_by_llm(company)
         if result:
             return result, "llm", 0.7
-        # 民企兜底：国内招聘市场默认，置信度低
-        return "private", "default", 0.3
+        return default, "default", 0.3
 
     def _classify_by_llm(self, company: str) -> str | None:
         if not settings.llm_enabled:

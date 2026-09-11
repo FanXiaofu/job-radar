@@ -17,12 +17,13 @@ USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 
 @dataclass
 class RawItem:
-    """采集层输出：只负责搬运原始数据，结构化交给 AI 处理层。"""
+    """采集层输出：结构化接口可直接填 parsed，非结构化文本交给 AI 层抽取。"""
     source: str
     url: str
     raw_text: str
     title: str = ""
     extras: dict = field(default_factory=dict)
+    parsed: dict | None = None  # 已结构化的岗位数据，Pipeline 跳过 LLM 抽取
 
 
 class BaseSource(ABC):

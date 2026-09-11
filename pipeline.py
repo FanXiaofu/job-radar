@@ -59,7 +59,10 @@ class Pipeline:
         return stats
 
     def _process(self, item, stats: dict) -> None:
-        job = self.extractor.extract(item.raw_text)
+        if item.parsed:
+            job = dict(item.parsed)  # 结构化接口直出，不走 LLM
+        else:
+            job = self.extractor.extract(item.raw_text)
         if not job:
             stats["errors"] += 1
             return
@@ -71,13 +74,16 @@ class Pipeline:
             stats["errors"] += 1
             return
 
-        category, cat_source, confidence = self.classifier.classify(company)
+        category, cat_source, confidence = self.classifier.classify(
+            company, default="central" if item.source == "iguopin" else "private")
         job["category"] = category
+        job["content_hash"] = repository.make_hash(
+            company, job.get("title", ""), job.get("location", ""), job.get("apply_url", ""))
 
         with get_conn() as conn:
             repository.upsert_company(conn, company, category, cat_source, confidence)
             existing_jobs = [dict(r) for r in conn.execute(
-                "SELECT company_name, title, apply_url FROM jobs WHERE company_name = ?",
+                "SELECT id, company_name, title, apply_url FROM jobs WHERE company_name = ?",
                 (company,))]
             dup = is_duplicate(job, existing_jobs)
             if dup:
