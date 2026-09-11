@@ -1,0 +1,42 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #f4f6fa; color: #1f2937; }
+
+header { background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: #fff; padding: 28px 16px 22px; text-align: center; }
+header h1 { font-size: 26px; }
+.subtitle { opacity: .85; margin-top: 6px; font-size: 13px; }
+
+.stats { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: -18px auto 0; max-width: 960px; padding: 0 12px; }
+.stat-card { background: #fff; border-radius: 10px; padding: 12px 18px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.06); min-width: 96px; }
+.stat-card b { display: block; font-size: 20px; color: #1e3a8a; }
+.stat-card span { font-size: 12px; color: #6b7280; }
+.stat-card.run b { font-size: 13px; text-transform: capitalize; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 18px auto; max-width: 960px; padding: 0 12px; }
+.filters select, .filters input { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #fff; }
+.filters input { flex: 1; min-width: 180px; }
+.filters button { padding: 8px 22px; background: #2563eb; color: #fff; border: 0; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.filters button:hover { background: #1d4ed8; }
+
+.job-list { max-width: 960px; margin: 0 auto; padding: 0 12px; display: flex; flex-direction: column; gap: 12px; }
+.job-card { background: #fff; border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+.job-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.job-head h2 { font-size: 17px; }
+.tag { font-size: 11px; padding: 2px 8px; border-radius: 20px; }
+.cat-central { background: #dc2626; color: #fff; }
+.cat-private { background: #2563eb; color: #fff; }
+.cat-foreign { background: #059669; color: #fff; }
+.type-campus { background: #f59e0b; color: #fff; }
+.type-social { background: #64748b; color: #fff; }
+.company { color: #374151; font-size: 14px; margin-top: 6px; font-weight: 600; }
+.req { color: #6b7280; font-size: 13px; margin-top: 6px; line-height: 1.6; }
+.job-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+.apply { background: #16a34a; color: #fff; text-decoration: none; padding: 6px 14px; border-radius: 8px; font-size: 13px; }
+.apply:hover { background: #15803d; }
+.meta { color: #9ca3af; font-size: 12px; }
+.empty { text-align: center; color: #6b7280; padding: 40px 0; }
+.empty code { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; }
+
+.pager { text-align: center; margin: 20px 0; color: #6b7280; font-size: 14px; }
+.pager a { color: #2563eb; text-decoration: none; margin: 0 10px; }
+
+footer { text-align: center; color: #9ca3af; font-size: 12px; padding: 16px; }
