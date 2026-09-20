@@ -1,0 +1,15 @@
+services:
+  job-radar:
+    build: .
+    container_name: job-radar
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - TZ=Asia/Shanghai
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped

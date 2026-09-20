@@ -36,7 +36,8 @@ class Settings:
     schedule_hour: int = field(default_factory=lambda: _env_int("SCHEDULE_HOUR", 9))
     schedule_minute: int = field(default_factory=lambda: _env_int("SCHEDULE_MINUTE", 0))
     web_host: str = field(default_factory=lambda: _env("WEB_HOST", "127.0.0.1"))
-    web_port: int = field(default_factory=lambda: _env_int("WEB_PORT", 8000))
+    # 平台（HF Spaces/Render）通过 PORT 注入监听端口，本地可用 WEB_PORT 覆盖
+    web_port: int = field(default_factory=lambda: _env_int("PORT", _env_int("WEB_PORT", 8000)))
 
     # 爬虫行为
     request_timeout: float = 20.0

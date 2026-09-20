@@ -18,6 +18,14 @@ CATEGORY_LABELS = {"central": "央国企", "private": "民企", "foreign": "外�
 TYPE_LABELS = {"campus": "校招", "social": "社招"}
 
 
+@app.get("/health")
+def health():
+    """探活端点：部署平台健康检查与快速验证用。"""
+    stats = repository.count_jobs()
+    return {"status": "ok", "jobs": stats["total"], "today": stats["today"],
+            "last_run": (stats.get("last_run") or {}).get("status")}
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, category: str = "", recruit_type: str = "",
           keyword: str = "", page: int = 1):

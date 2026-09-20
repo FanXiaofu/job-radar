@@ -39,8 +39,17 @@ def run_crawl() -> None:
 
 
 def run_serve() -> None:
+    import threading
+
     import uvicorn
     from apscheduler.schedulers.background import BackgroundScheduler
+
+    from db import repository
+
+    # 空库自动首采（后台线程）：应对容器平台数据盘重置后的冷启动
+    if repository.count_jobs()["total"] == 0:
+        logger.info("数据库为空，后台线程先执行首轮采集，Web 服务不阻塞")
+        threading.Thread(target=run_crawl, daemon=True, name="first-crawl").start()
 
     scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
     scheduler.add_job(run_crawl, "cron",
