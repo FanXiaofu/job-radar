@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = ["config.py", "main.py", "pipeline.py", "requirements.lock", "Dockerfile", ".dockerignore"]
-DIRS = ["app", "agent", "crawler", "db"]
+DIRS = ["app", "agent", "crawler", "db", "seed"]
 
 
 def main() -> None:

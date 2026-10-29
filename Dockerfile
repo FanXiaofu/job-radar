@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir -r requirements.lock \
 
 COPY . .
 
+# 内置部署快照：容器首次启动直接有数据；本地开发仍使用 data/job.db
+RUN mkdir -p /app/data && cp /app/seed/job.db /app/data/job.db
+
 # HF Spaces 要求监听 7860；本地 compose 用 PORT=8000 覆盖
 ENV PORT=7860
 EXPOSE 7860
