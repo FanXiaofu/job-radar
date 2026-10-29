@@ -17,23 +17,30 @@
    - Space name：`job-radar`
    - SDK：选 **Docker**（Blank 模板）
    - Visibility：Public
-3. 把本仓库代码推送到 Space 的 git 仓库（Space 页面有仓库地址，形如
-   `https://huggingface.co/spaces/<你的用户名>/job-radar`）：
+3. 在本地准备最小部署目录（自动写入 HF Docker Space 的 README frontmatter，
+   避免主仓库 README 覆盖 `sdk: docker` / `app_port: 7860`）：
 
    ```bash
-   git remote add hf https://huggingface.co/spaces/<用户名>/job-radar
-   git push hf main
+   python scripts/prepare_hf_space.py --out _hf_space
+   cd _hf_space
+   git init
+   git add .
+   git commit -m "deploy job-radar"
+   git remote add origin https://huggingface.co/spaces/<用户名>/job-radar
+   git push -u origin main
    ```
 
    推送时用户名填 HF 用户名，密码填 HF Access Token
-   （头像 → Settings → Access Tokens → 新建，勾 write 权限）
+   （头像 → Settings → Access Tokens → 新建，勾 write 权限）。`_hf_space` 只包含运行所需文件，
+   不包含数据库、日志、测试和 `.env`。
 4. **配置 Secret**（密钥不进代码库）：Space 页面 → Settings → Variables and secrets
    → New secret：`LLM_API_KEY` = 你的 DeepSeek Key
-5. 等 Docker 自动构建（首次 5~10 分钟），Build 日志在页面顶部可见
-6. 验证：打开 Space URL，页面出现岗位列表即成功；`<Space URL>/health` 返回 JSON
+5. 等 Docker 自动构建（首次约 2~5 分钟），Build 日志在页面顶部可见
+6. 验证：打开 Space URL，页面出现岗位列表即成功；`<Space URL>/health` 返回 JSON，
+   Dockerfile 已带 `HEALTHCHECK`，页面状态会显示 healthy
 
 **注意事项**：
-- 免费版 Space 重建后 SQLite 数据丢失，应用启动时会检测空库自动重新采集（首轮约 4–8 分钟），
+- 免费版 Space 重建后 SQLite 数据丢失，应用启动时会检测空库自动重新采集（首轮约 2–5 分钟，随岗位数量变化），
   期间页面显示"暂无岗位数据"属正常
 - HF 强制监听 7860 端口，Dockerfile 已处理
 - README 顶部的 HF 链接部署完成后替换为你的真实 Space 地址
@@ -60,5 +67,13 @@ cp .env.example .env   # 填 LLM_API_KEY
 docker compose up -d --build
 # 访问 http://服务器IP:8000，数据持久化在 ./data
 ```
+
+可选 Compose 变量（写在 `.env` 或命令前）：
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `HOST_PORT` | 8000 | 宿主机端口 |
+| `DATA_DIR` | ./data | SQLite 数据目录挂载 |
+| `LOG_DIR` | ./logs | 日志目录挂载 |
 
 建议同步在服务器安全组只放行 80/443/22，并用 Nginx 反代 + 域名。

@@ -3,13 +3,13 @@ services:
     build: .
     container_name: job-radar
     ports:
-      - "8000:8000"
+      - "${HOST_PORT:-8000}:8000"
     environment:
       - PORT=8000
       - TZ=Asia/Shanghai
     env_file:
       - .env
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - "${DATA_DIR:-./data}:/app/data"
+      - "${LOG_DIR:-./logs}:/app/logs"
     restart: unless-stopped

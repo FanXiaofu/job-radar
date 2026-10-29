@@ -9,3 +9,4 @@ data/*.db-wal
 data/*.db-journal
 logs/
 .pytest_cache/
+_hf_space/

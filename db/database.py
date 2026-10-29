@@ -16,7 +16,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS companies (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    category TEXT,               -- central=央国企 / private=民企 / foreign=外企
+    category TEXT,               -- central=央国企 / private=民企 / foreign=外企 / unknown=未分类
     category_source TEXT,        -- list=名录匹配 / llm=模型判断 / default=兜底
     confidence REAL DEFAULT 0,
     created_at TEXT NOT NULL,
@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     category TEXT,               -- 冗余自 companies，便于筛选
     requirements TEXT,
     location TEXT,
+    deadline TEXT,               -- 报名截止日期 YYYY-MM-DD
     apply_url TEXT,
     source TEXT NOT NULL,        -- iguopin / nowcoder / search
     source_url TEXT,
@@ -71,6 +72,11 @@ def now_str() -> str:
     return datetime.now(_BJ_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def days_ago_str(days: int) -> str:
+    """N 天前的北京时间，用于“最近 N 天”筛选。"""
+    return (datetime.now(_BJ_TZ) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+
+
 @contextmanager
 def get_conn():
     conn = sqlite3.connect(settings.db_path, timeout=15)
@@ -85,6 +91,14 @@ def get_conn():
         conn.close()
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """轻量迁移：给旧库补 deadline 列和索引，可重复执行。"""
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
+    if "deadline" not in columns:
+        conn.execute("ALTER TABLE jobs ADD COLUMN deadline TEXT")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_deadline ON jobs(deadline)")
+
+
 def init_db() -> None:
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     with _lock, get_conn() as conn:
@@ -92,3 +106,4 @@ def init_db() -> None:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=15000")
         conn.executescript(SCHEMA)
+        _migrate(conn)

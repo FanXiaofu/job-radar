@@ -1,5 +1,7 @@
 """采集流水线：数据源 -> 原始留档 -> （结构化直出 | LLM 抽取）-> 分类 -> 去重 -> 入库。"""
 import logging
+import re
+from datetime import datetime, timedelta
 
 from db import repository
 from db.database import get_conn, init_db
@@ -14,7 +16,22 @@ logger = logging.getLogger(__name__)
 ALLOWED_SCHEMES = ("http://", "https://")
 # 入库必需字段，缺失时补空串，避免 SQL 绑定参数缺失
 REQUIRED_FIELDS = ("company_name", "title", "recruit_type", "category",
-                   "requirements", "location", "apply_url", "source", "source_url")
+                   "requirements", "location", "deadline", "apply_url", "source", "source_url")
+DEADLINE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+MAX_DEADLINE_YEARS = 5
+
+
+def _normalize_deadline(value: str) -> str:
+    """校验日期格式，并把超过 5 年的哨兵值视为未注明。"""
+    value = (value or "").strip()
+    if not DEADLINE_RE.match(value):
+        return ""
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        return ""
+    max_date = (datetime.now() + timedelta(days=365 * MAX_DEADLINE_YEARS)).strftime("%Y-%m-%d")
+    return value if value <= max_date else ""
 
 
 class Pipeline:
@@ -25,53 +42,87 @@ class Pipeline:
     def run(self, sources: list) -> dict:
         """sources: 已实例化的 BaseSource 子类列表。返回本次运行统计。"""
         init_db()
-        stats = {"total_raw": 0, "new_jobs": 0, "duplicates": 0, "errors": 0, "detail": ""}
+        stats = {"total_raw": 0, "new_jobs": 0, "updated_jobs": 0,
+                 "duplicates": 0, "errors": 0, "detail": ""}
         errors: list[str] = []
         all_items = []
+        run_id: int | None = None
+        committed = False
 
-        for source in sources:
-            try:
-                items = source.crawl()
-                all_items.extend(items)
-                logger.info("[%s] 采集 %d 条", source.name, len(items))
-            except Exception as e:
-                msg = f"{source.name} 采集失败: {e}"
-                logger.exception(msg)
-                errors.append(msg)
+        try:
+            # 先落运行记录，started_at 才代表真正的采集开始时间
+            with get_conn() as conn:
+                run_id = repository.start_run(conn)
 
-        # 搜索 Agent 作为补充渠道：需要 LLM（落地页为非结构化文本）
-        if settings_search_enabled():
-            try:
-                found = SearchAgent().run()
-                all_items.extend(found)
-                logger.info("[search] 补充候选 %d 条", len(found))
-            except Exception as e:
-                msg = f"搜索 Agent 失败: {e}"
-                logger.exception(msg)
-                errors.append(msg)
-
-        stats["total_raw"] = len(all_items)
-        with get_conn() as conn:
-            run_id = repository.start_run(conn)
-            repository.save_raw_items(conn, run_id, [
-                {"source": it.source, "url": it.url, "raw_text": it.raw_text}
-                for it in all_items])
-            # 同一连接处理全部条目，避免几百次连接/提交开销
-            for item in all_items:
+            for source in sources:
                 try:
-                    self._process(conn, item, stats, errors)
+                    items = source.crawl()
+                    all_items.extend(items)
+                    logger.info("[%s] 采集 %d 条", source.name, len(items))
                 except Exception as e:
                     stats["errors"] += 1
-                    errors.append(f"处理失败 {item.url[:60]}: {e}")
-                    logger.exception("处理条目失败: %s", item.url)
+                    msg = f"{source.name} 采集失败: {e}"
+                    logger.exception(msg)
+                    errors.append(msg)
 
-        stats["detail"] = "; ".join(errors[:20])
-        has_output = stats["new_jobs"] + stats["duplicates"] > 0
-        status = "success" if not errors else ("partial" if has_output else "failed")
-        with get_conn() as conn:
-            repository.finish_run(conn, run_id, status, stats)
-        logger.info("流水线完成: %s", {k: v for k, v in stats.items() if k != "detail"})
-        return stats
+            # 搜索 Agent 作为补充渠道：需要 LLM（落地页为非结构化文本）
+            if settings_search_enabled():
+                try:
+                    found = SearchAgent().run()
+                    all_items.extend(found)
+                    logger.info("[search] 补充候选 %d 条", len(found))
+                except Exception as e:
+                    stats["errors"] += 1
+                    msg = f"搜索 Agent 失败: {e}"
+                    logger.exception(msg)
+                    errors.append(msg)
+
+            stats["total_raw"] = len(all_items)
+            if not all_items:
+                stats["errors"] += 1
+                errors.append("本轮未采集到任何条目，请检查数据源或接口变更")
+
+            # 原始条目先独立提交，后续处理崩溃也能回溯本轮采集
+            with get_conn() as conn:
+                repository.save_raw_items(conn, run_id, [
+                    {"source": it.source, "url": it.url, "raw_text": it.raw_text}
+                    for it in all_items])
+
+            # 同一连接处理全部条目，避免几百次连接/提交开销
+            with get_conn() as conn:
+                for item in all_items:
+                    try:
+                        self._process(conn, item, stats, errors)
+                    except Exception as e:
+                        stats["errors"] += 1
+                        errors.append(f"处理失败 {item.url[:60]}: {e}")
+                        logger.exception("处理条目失败: %s", item.url)
+            committed = True
+
+            stats["detail"] = "; ".join(errors[:20])
+            has_output = stats["new_jobs"] + stats["duplicates"] > 0
+            status = "success" if stats["errors"] == 0 else ("partial" if has_output else "failed")
+            with get_conn() as conn:
+                repository.finish_run(conn, run_id, status, stats)
+            logger.info("流水线完成: %s", {k: v for k, v in stats.items() if k != "detail"})
+            return stats
+        except Exception as e:
+            if run_id is not None:
+                if not committed:
+                    # 处理事务已回滚，不能把尝试计数当成已入库计数
+                    stats["new_jobs"] = stats["updated_jobs"] = stats["duplicates"] = 0
+                stats["errors"] += 1
+                errors.append(f"流水线异常: {e}")
+                stats["detail"] = "; ".join(errors[:20])
+                try:
+                    with get_conn() as conn:
+                        repository.finish_run(conn, run_id, "failed", stats)
+                except Exception:
+                    logger.exception("记录失败状态时出错")
+                logger.exception("流水线异常，已标记 failed")
+            else:
+                logger.exception("流水线在创建运行记录前失败")
+            raise
 
     def _process(self, conn, item, stats: dict, errors: list) -> None:
         if item.parsed:
@@ -84,6 +135,8 @@ class Pipeline:
         job["source"] = item.source
         job["source_url"] = item.url or ""
 
+        job["deadline"] = _normalize_deadline(job.get("deadline"))
+
         company = (job.get("company_name") or "").strip()
         if not company or not (job.get("title") or "").strip():
             stats["errors"] += 1
@@ -95,8 +148,8 @@ class Pipeline:
         if cached and cached["confidence"] >= 0.5:
             category, cat_source, confidence = cached["category"], "cache", cached["confidence"]
         else:
-            category, cat_source, confidence = self.classifier.classify(
-                company, default="central" if item.source == "iguopin" else "private")
+            # 未命中名录/LLM 时返回 unknown，不按来源平台猜测企业性质
+            category, cat_source, confidence = self.classifier.classify(company)
             repository.upsert_company(conn, company, category, cat_source, confidence)
         job["category"] = category
 
@@ -115,12 +168,13 @@ class Pipeline:
         if existing is None:
             # 第二层：同企业内 URL 归一化 + 标题相似度模糊去重
             existing_jobs = [dict(r) for r in conn.execute(
-                "SELECT id, company_name, title, apply_url FROM jobs WHERE company_name = ?",
+                "SELECT id, company_name, title, apply_url, location FROM jobs WHERE company_name = ?",
                 (company,))]
             existing = is_duplicate(job, existing_jobs)
         if existing:
             stats["duplicates"] += 1
-            repository.touch_job(conn, existing["id"], job)
+            if repository.touch_job(conn, existing["id"], job):
+                stats["updated_jobs"] += 1
         else:
             repository.insert_job(conn, job)
             stats["new_jobs"] += 1

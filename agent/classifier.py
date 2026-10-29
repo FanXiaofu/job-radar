@@ -1,6 +1,6 @@
 """企业类型分类：内置名录精确匹配优先，未命中走 LLM，均带来源与置信度。
 
-category 取值：central=央国企 / private=民企 / foreign=外企
+category 取值：central=央国企 / private=民企 / foreign=外企 / unknown=未分类
 """
 import logging
 from pathlib import Path
@@ -27,13 +27,14 @@ class CompanyClassifier:
     def __init__(self):
         self._central = _load_list("central_soes.txt")
         self._foreign = _load_list("foreign_companies.txt")
+        self._private = _load_list("private_companies.txt")
         self._llm = None
 
-    def classify(self, company: str, default: str = "private") -> tuple[str, str, float]:
+    def classify(self, company: str, default: str = "unknown") -> tuple[str, str, float]:
         """返回 (category, source, confidence)。source: list / llm / default
 
-        default：名录与 LLM 均未命中时的兜底类型。可按数据源传入领域先验
-        （如国聘平台以央国企为主传 "central"），通用场景保持 "private"。
+        default：名录与 LLM 均未命中时的兜底类型。默认 unknown，避免把来源平台
+        当成企业性质事实；调用方如确有可信先验，可显式传入其他值。
         """
         company_l = company.lower()
         for entry in self._central:
@@ -43,6 +44,10 @@ class CompanyClassifier:
             entry_l = entry.lower()
             if entry_l in company_l or company_l in entry_l:
                 return "foreign", "list", 1.0
+        for entry in self._private:
+            entry_l = entry.lower()
+            if entry_l in company_l or company_l in entry_l:
+                return "private", "list", 1.0
         result = self._classify_by_llm(company)
         if result:
             return result, "llm", 0.7

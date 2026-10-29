@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://www.nowcoder.com/np-api/u/job/square-search"
 COMPANY_PAGE_URL = "https://www.nowcoder.com/enterprise/{company_id}"
+JOB_DETAIL_URL = "https://www.nowcoder.com/jobs/detail/{job_id}"
 COMPANY_TITLE_RE = re.compile(r"^(.*?)(?:\d{4}年校招职位信息|校招职位信息|企业主页)")
 _BJ_TZ = timezone(timedelta(hours=8))
 
@@ -60,6 +61,9 @@ class NowcoderSource(BaseSource):
                 job_id = job.get("id")
                 if not job_id or job_id in seen_ids:
                     continue
+                # 广告/推荐位卡片没有岗位名，跳过，避免制造无效错误
+                if not (job.get("jobName") or "").strip():
+                    continue
                 seen_ids.add(job_id)
                 try:
                     items.append(self._to_item(job))
@@ -98,7 +102,7 @@ class NowcoderSource(BaseSource):
             logger.warning("[nowcoder] 公司页获取失败 %s: %s", url, e)
         if name:
             self._company_names[company_id] = name
-        self._throttle()
+        # fetch() 内部已经限速，这里不再重复等待
         return name
 
     @staticmethod
@@ -112,8 +116,14 @@ class NowcoderSource(BaseSource):
             return ""
 
     def _to_item(self, job: dict) -> RawItem:
+        job_id = job.get("id")
+        if not job_id:
+            raise ValueError("缺少职位 id")
         company_id = job.get("company_id") or job.get("companyId")
-        company = self._company_name(company_id) if company_id else ""
+        # 职位接口已带企业名时直接使用，避免逐条请求企业页
+        company = ((job.get("recommendInternCompany") or {}).get("companyName") or "").strip()
+        if not company and company_id:
+            company = self._company_name(company_id)
         cities = "、".join(str(c) for c in (job.get("jobCityList") or []))
         salary = job.get("salaryShow") or ""
         deadline = self._ts_to_date(job.get("deliverEnd"))
@@ -125,18 +135,20 @@ class NowcoderSource(BaseSource):
         if jd:
             req_parts.append(jd[:300])
         recruit_type = RECRUIT_TYPE_MAP.get(job.get("recruitType"), "social")
-        source_url = COMPANY_PAGE_URL.format(company_id=company_id) if company_id else ""
+        detail_url = JOB_DETAIL_URL.format(job_id=job_id)
         external = job.get("redirectExternalUrl")
+        apply_url = (external if isinstance(external, str) and external.startswith("http")
+                     else detail_url)
         parsed = {
             "company_name": company,
             "title": (job.get("jobName") or "").strip(),
             "recruit_type": recruit_type,
             "requirements": "；".join(str(p) for p in req_parts),
             "location": cities,
-            "apply_url": external if isinstance(external, str) and external.startswith("http") else "",
+            "apply_url": apply_url,
             "deadline": deadline,
         }
-        return RawItem(source=self.name, url=source_url,
+        return RawItem(source=self.name, url=detail_url,
                        raw_text=f"{parsed['title']} {parsed['requirements']} {cities}",
                        title=parsed["title"], parsed=parsed)
 

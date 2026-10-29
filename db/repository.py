@@ -2,7 +2,8 @@
 import hashlib
 import sqlite3
 
-from db.database import get_conn, now_str
+from config import settings
+from db.database import days_ago_str, get_conn, now_str
 
 
 def _norm(v: str | None) -> str:
@@ -48,24 +49,33 @@ def insert_job(conn: sqlite3.Connection, job: dict) -> int:
     now = now_str()
     cur = conn.execute(
         """INSERT INTO jobs (company_name, title, recruit_type, category, requirements,
-                             location, apply_url, source, source_url, content_hash,
+                             location, deadline, apply_url, source, source_url, content_hash,
                              first_seen, last_seen)
            VALUES (:company_name, :title, :recruit_type, :category, :requirements,
-                   :location, :apply_url, :source, :source_url, :content_hash, :now, :now)""",
-        {**job, "now": now},
+                   :location, :deadline, :apply_url, :source, :source_url, :content_hash, :now, :now)""",
+        {**job, "now": now, "deadline": job.get("deadline", "")},
     )
     return cur.lastrowid
 
 
-def touch_job(conn: sqlite3.Connection, job_id: int, updates: dict) -> None:
-    """同一岗位再次出现时刷新 last_seen，并补充此前缺失的字段。"""
+def touch_job(conn: sqlite3.Connection, job_id: int, updates: dict) -> bool:
+    """刷新 last_seen，并补齐此前为空的字段；返回是否补到了字段。"""
+    row = conn.execute(
+        "SELECT requirements, location, deadline, apply_url, recruit_type, category FROM jobs WHERE id = ?",
+        (job_id,),
+    ).fetchone()
+    if row is None:
+        return False
     sets, params = ["last_seen = ?"], [now_str()]
-    for col in ("requirements", "location", "apply_url", "recruit_type", "category"):
-        if updates.get(col):
-            sets.append(f"{col} = COALESCE({col}, ?)")
+    changed = False
+    for col in ("requirements", "location", "deadline", "apply_url", "recruit_type", "category"):
+        if updates.get(col) and not (row[col] or "").strip():
+            sets.append(f"{col} = ?")
             params.append(updates[col])
+            changed = True
     params.append(job_id)
     conn.execute(f"UPDATE jobs SET {', '.join(sets)} WHERE id = ?", params)
+    return changed
 
 
 def start_run(conn: sqlite3.Connection) -> int:
@@ -78,7 +88,7 @@ def finish_run(conn: sqlite3.Connection, run_id: int, status: str, stats: dict) 
         """UPDATE crawl_runs SET finished_at = ?, status = ?, total_raw = ?, new_jobs = ?,
                updated_jobs = ?, duplicates = ?, errors = ?, detail = ? WHERE id = ?""",
         (now_str(), status, stats.get("total_raw", 0), stats.get("new_jobs", 0),
-         stats.get("duplicates", 0), stats.get("duplicates", 0), stats.get("errors", 0),
+         stats.get("updated_jobs", 0), stats.get("duplicates", 0), stats.get("errors", 0),
          stats.get("detail", ""), run_id),
     )
 
@@ -97,9 +107,18 @@ def _escape_like(keyword: str) -> str:
 
 
 def list_jobs(category: str | None, recruit_type: str | None, keyword: str | None,
+              include_stale: bool = False, open_only: bool = False, sort: str = "recent",
+              max_age_days: int | None = None,
               limit: int = 100, offset: int = 0) -> tuple[list[sqlite3.Row], int]:
-    """返回 (岗位列表, 过滤后的总数)。总数用于正确分页。"""
+    """返回 (岗位列表, 过滤后的总数)。默认只统计最近 N 天有更新的岗位。"""
+    days = settings.job_max_age_days if max_age_days is None else max_age_days
     where, params = " WHERE 1=1", []
+    if not include_stale:
+        where += " AND last_seen >= ?"
+        params.append(days_ago_str(days))
+    if open_only:
+        where += " AND (deadline IS NULL OR deadline = '' OR deadline >= ?)"
+        params.append(now_str()[:10])
     if category:
         where += " AND category = ?"
         params.append(category)
@@ -110,25 +129,44 @@ def list_jobs(category: str | None, recruit_type: str | None, keyword: str | Non
         where += r" AND (title LIKE ? ESCAPE '\' OR company_name LIKE ? ESCAPE '\' OR requirements LIKE ? ESCAPE '\')"
         kw = f"%{_escape_like(keyword)}%"
         params += [kw, kw, kw]
+    order = ("ORDER BY (deadline IS NULL OR deadline = '') ASC, deadline ASC, "
+             "last_seen DESC, id DESC"
+             if sort == "deadline" else "ORDER BY last_seen DESC, id DESC")
     with get_conn() as conn:
         total = conn.execute(f"SELECT COUNT(*) c FROM jobs{where}", params).fetchone()["c"]
         rows = conn.execute(
-            f"SELECT * FROM jobs{where} ORDER BY last_seen DESC, id DESC LIMIT ? OFFSET ?",
+            f"SELECT * FROM jobs{where} {order} LIMIT ? OFFSET ?",
             params + [limit, offset]).fetchall()
     return rows, total
 
 
-def count_jobs() -> dict:
+def count_jobs(include_stale: bool = False, open_only: bool = False,
+               max_age_days: int | None = None) -> dict:
+    days = settings.job_max_age_days if max_age_days is None else max_age_days
+    conditions, params = [], []
+    if not include_stale:
+        conditions.append("last_seen >= ?")
+        params.append(days_ago_str(days))
+    if open_only:
+        conditions.append("(deadline IS NULL OR deadline = '' OR deadline >= ?)")
+        params.append(now_str()[:10])
+    clause = f" WHERE {' AND '.join(conditions)}" if conditions else ""
     with get_conn() as conn:
-        total = conn.execute("SELECT COUNT(*) c FROM jobs").fetchone()["c"]
+        total = conn.execute(f"SELECT COUNT(*) c FROM jobs{clause}", params).fetchone()["c"]
         by_cat = {r["category"] or "unknown": r["c"] for r in
-                  conn.execute("SELECT category, COUNT(*) c FROM jobs GROUP BY category")}
+                  conn.execute(f"SELECT category, COUNT(*) c FROM jobs{clause} GROUP BY category", params)}
         by_type = {r["recruit_type"] or "unknown": r["c"] for r in
-                   conn.execute("SELECT recruit_type, COUNT(*) c FROM jobs GROUP BY recruit_type")}
-        today = conn.execute(
-            "SELECT COUNT(*) c FROM jobs WHERE substr(last_seen, 1, 10) = ?",
-            (now_str()[:10],),
-        ).fetchone()["c"]
+                   conn.execute(f"SELECT recruit_type, COUNT(*) c FROM jobs{clause} GROUP BY recruit_type", params)}
+        today_conditions = ["substr(last_seen, 1, 10) = ?"]
+        today_params = [now_str()[:10]]
+        if not include_stale:
+            today_conditions.append("last_seen >= ?")
+            today_params.append(days_ago_str(days))
+        if open_only:
+            today_conditions.append("(deadline IS NULL OR deadline = '' OR deadline >= ?)")
+            today_params.append(now_str()[:10])
+        today_sql = f"SELECT COUNT(*) c FROM jobs WHERE {' AND '.join(today_conditions)}"
+        today = conn.execute(today_sql, today_params).fetchone()["c"]
         last_run = conn.execute(
             "SELECT * FROM crawl_runs WHERE status != 'running' ORDER BY id DESC LIMIT 1"
         ).fetchone()

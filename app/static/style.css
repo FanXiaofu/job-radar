@@ -14,6 +14,8 @@ header h1 { font-size: 26px; }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 18px auto; max-width: 960px; padding: 0 12px; }
 .filters select, .filters input { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #fff; }
 .filters input { flex: 1; min-width: 180px; }
+.filters .stale-toggle { display: flex; align-items: center; gap: 4px; font-size: 13px; color: #4b5563; white-space: nowrap; }
+.filters .stale-toggle input { flex: 0 0 auto; min-width: 0; width: auto; padding: 0; }
 .filters button { padding: 8px 22px; background: #2563eb; color: #fff; border: 0; border-radius: 8px; font-size: 14px; cursor: pointer; }
 .filters button:hover { background: #1d4ed8; }
 
@@ -25,9 +27,12 @@ header h1 { font-size: 26px; }
 .cat-central { background: #dc2626; color: #fff; }
 .cat-private { background: #2563eb; color: #fff; }
 .cat-foreign { background: #059669; color: #fff; }
+.cat-unknown { background: #9ca3af; color: #fff; }
 .type-campus { background: #f59e0b; color: #fff; }
 .type-social { background: #64748b; color: #fff; }
 .company { color: #374151; font-size: 14px; margin-top: 6px; font-weight: 600; }
+.deadline { color: #047857; }
+.deadline.past { color: #dc2626; }
 .req { color: #6b7280; font-size: 13px; margin-top: 6px; line-height: 1.6; }
 .job-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
 .apply { background: #16a34a; color: #fff; text-decoration: none; padding: 6px 14px; border-radius: 8px; font-size: 13px; }
