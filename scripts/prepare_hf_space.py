@@ -39,7 +39,7 @@ def main() -> None:
 
     shutil.copy2(ROOT / "deploy/hf-space/README.md", out / "README.md")
     print(f"HF Space 目录已生成: {out}")
-    print("下一步：进入目录，git init / git remote add / git push 到 Hugging Face Space")
+    print("下一步：克隆 HF Space 仓库，把本目录内容复制进去后 git add/commit/push")
 
 
 if __name__ == "__main__":

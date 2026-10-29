@@ -22,21 +22,31 @@
 
    ```bash
    python scripts/prepare_hf_space.py --out _hf_space
-   cd _hf_space
-   git init
+   ```
+
+4. **克隆刚创建的 Space 仓库，把 `_hf_space` 内容复制进去再推送**。
+   Space 创建时会自带一个初始 README，直接 `git init + push` 会 non-fast-forward；
+   clone 后覆盖最稳：
+
+   ```bash
+   git clone https://huggingface.co/spaces/<用户名>/job-radar
+   cd job-radar
+   # Windows PowerShell（robocopy 退出码 1 表示成功复制）：
+   robocopy "<项目路径>\_hf_space" "." /E /XD .git
+   # macOS / Linux：
+   # rsync -a --exclude .git ../_hf_space/ .
    git add .
    git commit -m "deploy job-radar"
-   git remote add origin https://huggingface.co/spaces/<用户名>/job-radar
-   git push -u origin main
+   git push
    ```
 
    推送时用户名填 HF 用户名，密码填 HF Access Token
    （头像 → Settings → Access Tokens → 新建，勾 write 权限）。`_hf_space` 只包含运行所需文件，
    不包含数据库、日志、测试和 `.env`。
-4. **配置 Secret**（密钥不进代码库）：Space 页面 → Settings → Variables and secrets
+5. **配置 Secret**（密钥不进代码库）：Space 页面 → Settings → Variables and secrets
    → New secret：`LLM_API_KEY` = 你的 DeepSeek Key
-5. 等 Docker 自动构建（首次约 2~5 分钟），Build 日志在页面顶部可见
-6. 验证：打开 Space URL，页面出现岗位列表即成功；`<Space URL>/health` 返回 JSON，
+6. 等 Docker 自动构建（首次约 2~5 分钟），Build 日志在页面顶部可见
+7. 验证：打开 Space URL，页面出现岗位列表即成功；`<Space URL>/health` 返回 JSON，
    Dockerfile 已带 `HEALTHCHECK`，页面状态会显示 healthy
 
 **注意事项**：
