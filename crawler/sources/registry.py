@@ -11,6 +11,7 @@ def get_sources() -> list:
     for module_name, class_name in [
         ("crawler.sources.iguopin", "IguopinSource"),
         ("crawler.sources.nowcoder", "NowcoderSource"),
+        ("crawler.sources.yingjiesheng", "YingjieshengSource"),
     ]:
         try:
             module = __import__(module_name, fromlist=[class_name])
