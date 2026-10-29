@@ -9,5 +9,7 @@ services:
         value: 0.0.0.0
       - key: JOB_MAX_AGE_DAYS
         value: 30
+      - key: LAZY_CRAWL_ENABLED
+        value: "1"
       - key: SEARCH_PROVIDER
         value: none

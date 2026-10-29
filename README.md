@@ -10,7 +10,7 @@
 2. **央国企窗口短**：央企国企的网申通常只开 1~2 周，信息滞后几天就是直接损失
 3. **招聘 App 不按企业性质组织信息**："只看央国企校招"这个高频需求，主流产品都没有对应筛选项
 
-秋招雷达在配置好定时任务后，每天 9:00 自动从公开渠道采集岗位，结构化入库，按 **企业性质（央国企/民企/外企/未分类）× 招聘类型（校招/社招）× 关键词** 三维筛选，并尽量提供投递入口。
+秋招雷达在常驻部署时每天 9:00 自动从公开渠道采集岗位；页面首次访问时若当天还没有成功采集，也会在后台补一轮。数据结构化入库后，按 **企业性质（央国企/民企/外企/未分类）× 招聘类型（校招/社招）× 关键词** 三维筛选，并尽量提供投递入口。
 
 **适合谁**：2026/2027 届计算机、AI 方向求职者；也适合想观察各类型企业招聘动向的人。
 
@@ -107,6 +107,13 @@ python main.py serve        # 启动 Web + 每天 9:00 定时采集
 
 Windows 用户可直接双击 `start.bat`。Docker 用户：`docker compose up -d --build`。
 
+### 更新策略
+
+- **常驻部署**（本机 / 云服务器 / Docker）：APScheduler 每天 09:00 自动采集，Web 请求直接读 SQLite，采集完成后刷新页面即可看到新岗位。
+- **Render 免费实例**：15 分钟无访问会休眠，9:00 的定时任务不保证执行；页面第一次访问（或实例冷启动）时会检查当天是否已有 `success/partial` 记录，没有就在后台补采一轮，页面先显示旧快照，约 2 分钟后刷新即可。
+- **免费实例的重启/休眠**：SQLite 是临时的，重启后回到镜像里的 `seed/job.db`；因此懒更新可能在不同冷启动中重复触发，且新采集数据不会跨重启保留。严格“每天一次 + 数据持久”需要持久磁盘或云服务器。
+- 懒更新由 `LAZY_CRAWL_ENABLED` 控制，默认开启；关闭后只保留 09:00 定时任务。
+
 ## 配置
 
 | 变量 | 说明 | 默认 |
@@ -115,11 +122,12 @@ Windows 用户可直接双击 `start.bat`。Docker 用户：`docker compose up -
 | SEARCH_PROVIDER / SEARCH_API_KEY | bocha / tavily / none | none |
 | SCHEDULE_HOUR / SCHEDULE_MINUTE | 每日采集时刻 | 9:00 |
 | JOB_MAX_AGE_DAYS | 页面默认展示最近 N 天有更新的岗位 | 30 |
+| LAZY_CRAWL_ENABLED | 首次访问触发当天补采 | 1 |
 | PORT / WEB_PORT | 监听端口（容器平台注入 PORT） | 8000 |
 
 ## 质量保障
 
-- **一键测试**：`pip install -r requirements-dev.lock && pytest`（24 个用例，自动发现 `tests/`）
+- **一键测试**：`pip install -r requirements-dev.lock && pytest`（26 个用例，自动发现 `tests/`）
 - **CI**：GitHub Actions 在 push/PR 时执行 `compileall` + `pytest`（[.github/workflows/ci.yml](.github/workflows/ci.yml)）
 - **依赖锁定**：`requirements.lock` / `requirements-dev.lock` 为 pip-compile 生成的全量锁定；`requirements.txt` / `requirements-dev.txt` 是源文件，已移除未使用的 playwright
   - 更新依赖：`pip install pip-tools` 后执行 `pip-compile requirements.txt -o requirements.lock --no-emit-index-url --no-emit-trusted-host --no-strip-extras` 和 `pip-compile requirements-dev.txt -o requirements-dev.lock --no-emit-index-url --no-emit-trusted-host --no-strip-extras`
@@ -135,6 +143,7 @@ Windows 用户可直接双击 `start.bat`。Docker 用户：`docker compose up -
 - **重分类测试**：`python tests/test_reclassify.py`（名录重分类、写入、幂等）
 - **deadline 回填测试**：`python tests/test_backfill_deadline.py`
 - **迁移测试**：`python tests/test_migration.py`（旧库补 deadline 列/索引）
+- **懒更新判断测试**：`python tests/test_daily_crawl.py`（空库/跨天/失败重试/已运行）
 - **抽取评测集**：15 条人工标注样本，`python eval/run_eval.py` 输出字段级准确率（需要 `LLM_API_KEY`）
 - **分类回填**：`python scripts/backfill_unknown_category.py --db data/job.db`（默认 dry-run，加 `--apply` 写入；可重复执行）
 - **企业重分类**：`python scripts/reclassify_companies.py --db data/job.db`（默认 dry-run，加 `--apply` 写入；可重复执行）

@@ -9,8 +9,12 @@
 <body>
 <header>
   <h1>🎯 秋招雷达</h1>
-  <p class="subtitle">每天 9:00 自动更新的秋招信息聚合平台</p>
+  <p class="subtitle">每天 9:00 自动采集 · 首次访问补采的秋招信息聚合平台</p>
 </header>
+
+{% if refreshing %}
+<p class="notice">正在后台更新岗位（约 2 分钟），稍后刷新页面即可看到最新数据。</p>
+{% endif %}
 
 <section class="stats">
   <div class="stat-card"><b>{{ stats.total }}</b><span>岗位总数{% if not include_stale %}（近 {{ max_age_days }} 天{% if open_only %}，未截止{% endif %}）{% else %}（含历史{% if open_only %}，未截止{% endif %}）{% endif %}</span></div>

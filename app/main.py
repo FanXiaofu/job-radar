@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from config import settings
+from crawl_service import maybe_crawl_daily
 from db import repository
 from db.database import now_str
 
@@ -37,6 +38,7 @@ def index(request: Request, category: str = "", recruit_type: str = "",
           sort: str = "recent", page: int = 1):
     if sort not in ("recent", "deadline"):
         sort = "recent"
+    refreshing = maybe_crawl_daily()
     page_size = 20
     rows, total = repository.list_jobs(category or None, recruit_type or None,
                                        keyword or None, include_stale=include_stale,
@@ -51,6 +53,7 @@ def index(request: Request, category: str = "", recruit_type: str = "",
         "jobs": rows, "stats": stats, "page": page, "pages": pages, "total": total,
         "category": category, "recruit_type": recruit_type, "keyword": keyword,
         "include_stale": include_stale, "open_only": open_only, "sort": sort,
+        "refreshing": refreshing,
         "max_age_days": settings.job_max_age_days, "today": now_str()[:10],
         "category_labels": CATEGORY_LABELS, "type_labels": TYPE_LABELS,
     })

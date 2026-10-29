@@ -12,11 +12,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config import settings  # noqa: E402
 from db import repository  # noqa: E402
 from db.database import days_ago_str, get_conn, init_db  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
 
 @contextmanager
 def temp_db():
     old_path = settings.db_path
+    old_lazy = settings.lazy_crawl_enabled
+    settings.lazy_crawl_enabled = False
     with tempfile.TemporaryDirectory() as tmp:
         settings.db_path = Path(tmp) / "test.db"
         init_db()
@@ -24,6 +27,7 @@ def temp_db():
             yield
         finally:
             settings.db_path = old_path
+            settings.lazy_crawl_enabled = old_lazy
 
 
 def _seed_job(company="测试央企", title="算法工程师", category="central",
@@ -161,6 +165,20 @@ def test_web_unknown_category():
         assert central.status_code == 200
         assert "未知岗位" not in central.text, "未分类岗位不应出现在央国企筛选里"
         print("test_web_unknown_category 通过")
+
+
+def test_web_daily_crawl_notice(monkeypatch):
+    """首次访问触发补采时，页面应提示后台更新。"""
+    with temp_db():
+        _seed_job()
+        import app.main as web
+
+        monkeypatch.setattr(web, "maybe_crawl_daily", lambda: True)
+        client = TestClient(web.app)
+        index = client.get("/")
+        assert index.status_code == 200
+        assert "正在后台更新岗位" in index.text
+        print("test_web_daily_crawl_notice 通过")
 
 
 if __name__ == "__main__":

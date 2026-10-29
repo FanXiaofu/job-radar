@@ -20,6 +20,13 @@ def _env_int(key: str, default: int) -> int:
         return default
 
 
+def _env_bool(key: str, default: bool = True) -> bool:
+    value = _env(key)
+    if not value:
+        return default
+    return value.lower() not in ("0", "false", "no", "off")
+
+
 @dataclass
 class Settings:
     # LLM
@@ -40,6 +47,8 @@ class Settings:
     web_port: int = field(default_factory=lambda: _env_int("PORT", _env_int("WEB_PORT", 8000)))
     # 页面默认只展示最近 N 天有更新的岗位；历史岗位可通过页面勾选查看
     job_max_age_days: int = field(default_factory=lambda: max(1, _env_int("JOB_MAX_AGE_DAYS", 30)))
+    # 免费实例休眠后，第一次访问时若当天还没有成功采集，就在后台补一轮
+    lazy_crawl_enabled: bool = field(default_factory=lambda: _env_bool("LAZY_CRAWL_ENABLED", True))
 
     # 爬虫行为
     request_timeout: float = 20.0

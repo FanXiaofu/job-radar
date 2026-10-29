@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from config import settings, PROJECT_ROOT
+from crawl_service import maybe_crawl_daily, run_crawl
 from db.database import init_db
 
 LOG_DIR = PROJECT_ROOT / "logs"
@@ -23,33 +24,13 @@ logging.basicConfig(
 logger = logging.getLogger("main")
 
 
-def build_sources():
-    """注册所有数据源；单个源导入失败不影响其他源。"""
-    from crawler.sources import registry
-    return registry.get_sources()
-
-
-def run_crawl() -> None:
-    from pipeline import Pipeline
-    sources = build_sources()
-    if not sources:
-        logger.error("没有可用的数据源")
-        return
-    Pipeline().run(sources)
-
-
 def run_serve() -> None:
-    import threading
-
     import uvicorn
     from apscheduler.schedulers.background import BackgroundScheduler
 
-    from db import repository
-
-    # 空库自动首采（后台线程）：应对容器平台数据盘重置后的冷启动
-    if repository.count_jobs()["total"] == 0:
-        logger.info("数据库为空，后台线程先执行首轮采集，Web 服务不阻塞")
-        threading.Thread(target=run_crawl, daemon=True, name="first-crawl").start()
+    # 免费实例休眠后的第一次启动/访问：当天没有成功采集就后台补一轮
+    if maybe_crawl_daily():
+        logger.info("今日尚未成功采集，已启动后台采集，Web 服务不阻塞")
 
     scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
     scheduler.add_job(run_crawl, "cron",
