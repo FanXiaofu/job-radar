@@ -16,7 +16,8 @@
 
 ## 在线体验
 
-- Render 免费 Docker：[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/FanXiaofu/job-radar)（首次部署约 2–5 分钟；免费实例 15 分钟无访问会休眠，唤醒约 1 分钟）
+- **Render 在线演示**：<https://job-radar-zrsz.onrender.com>（免费实例 15 分钟无访问会休眠，唤醒约 1 分钟；首次冷启动会在后台自动采集）
+- 重新部署：[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/FanXiaofu/job-radar)（首次部署约 2–5 分钟）
 - Hugging Face Space：Docker/Gradio 当前为 Paid；免费账号只能用 Static，Static 无法运行 FastAPI，不建议用于本项目
 - 🖥️ 本地运行：见下方[快速开始](#快速开始)，或用 cpolar 内网穿透（见 [DEPLOY.md](DEPLOY.md)）
 
@@ -34,6 +35,8 @@
 | 单轮全量采集 | **~2 分钟**（2026-10-29 完整刷新实测 1m48s；只跑牛客 1m35s；优化前 13m58s / 7m58s） |
 
 > 口径说明：历史 4 轮基线为 **1021 岗位 / 423 企业**（2026-09-11 ~ 2026-09-12）；2026-10-29 完整刷新后当前库为 **1487 岗位 / 572 企业**。简历中的 1021/423 保留为 4 轮基线口径。数据库文件不提交到仓库，重新 clone 后需先跑一轮采集。LLM 抽取与搜索 Agent 默认关闭，当前数据全部来自国聘/牛客两个结构化 API。
+>
+> Render 演示实例使用独立 SQLite：首次冷启动会重新采集，岗位数与上表的本地 1487 快照可能不同（本次实测首次采集 901 条）。
 >
 > 2026-10-29 用临时库重跑验证新口径：985 原始 → 811 新增 / 137 去重 / 37 错误，`status=partial`，耗时 13m58s（修复重复限速前）。
 >
