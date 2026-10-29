@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: job-radar
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: WEB_HOST
+        value: 0.0.0.0
+      - key: JOB_MAX_AGE_DAYS
+        value: 30
+      - key: SEARCH_PROVIDER
+        value: none

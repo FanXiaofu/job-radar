@@ -16,7 +16,8 @@
 
 ## 在线体验
 
-- Hugging Face Space：尚未部署（部署后替换为真实链接）
+- Render 免费 Docker：[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/FanXiaofu/job-radar)（首次部署约 2–5 分钟；免费实例 15 分钟无访问会休眠，唤醒约 1 分钟）
+- Hugging Face Space：Docker/Gradio 当前为 Paid；免费账号只能用 Static，Static 无法运行 FastAPI，不建议用于本项目
 - 🖥️ 本地运行：见下方[快速开始](#快速开始)，或用 cpolar 内网穿透（见 [DEPLOY.md](DEPLOY.md)）
 
 数据全部来自公开渠道（国聘网、牛客网），仅供求职参考，投递以企业官方页面为准。

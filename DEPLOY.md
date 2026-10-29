@@ -1,16 +1,39 @@
 # 部署指南
 
-三种方式，按场景选择：
+四种方式，按场景选择：
 
 | 方式 | 成本 | 适用场景 |
 |---|---|---|
-| Hugging Face Spaces | 免费 | 简历链接，长期在线（国内访问偶尔慢） |
+| Render Free Docker | 免费 | 公网演示，15 分钟无访问休眠；适合简历链接 |
+| Hugging Face Spaces | 免费/付费 | 免费账号 Docker/Gradio 目前显示 Paid；免费只能 Static |
 | 本机 + cpolar | 免费 | 面试当天演示，流畅稳定 |
 | Docker Compose | 需一台服务器 | 有云服务器时的最佳方案 |
 
 ---
 
-## 方式一：Hugging Face Spaces（免费长期在线）
+## 方式一：Render 免费 Docker（推荐）
+
+1. 打开 <https://render.com/deploy?repo=https://github.com/FanXiaofu/job-radar>，用 GitHub 登录并授权。
+2. Render 会读取仓库根目录的 `render.yaml`，创建 Free Web Service。确认：
+   - Runtime：Docker
+   - Plan：Free
+   - Health Check Path：`/health`
+   - 环境变量：`WEB_HOST=0.0.0.0`、`JOB_MAX_AGE_DAYS=30`
+3. 可选：在 Environment 中添加 `LLM_API_KEY`（DeepSeek Key）；不加也能运行。
+4. 点 Deploy；首次构建约 2–5 分钟，完成后地址形如 `https://job-radar-xxxx.onrender.com`。
+5. 验证：`https://.../health` 返回 JSON，首页可访问。
+
+免费限制（Render 官方）：
+
+- 免费 Web Service 15 分钟无访问会休眠，下一次请求唤醒约 1 分钟。
+- 本地 SQLite 在重启、休眠、重部署后丢失；应用检测到空库会自动重新采集（约 2 分钟）。
+- 750 免费实例小时/月；免费实例不支持持久磁盘，适合演示，不适合生产。
+
+---
+
+## 方式二：Hugging Face Spaces（Docker/Gradio 当前为 Paid）
+
+> 注意：截至 2026-10，HF 免费账号创建 Docker/Gradio Space 会显示 Paid；免费只能用 Static，Static 无法运行 FastAPI。若不想付费，请用 Render 或云服务器。
 
 1. **注册** [huggingface.co](https://huggingface.co)（邮箱即可，免费）
 2. 右上角头像 → New Space：
@@ -55,7 +78,7 @@
 - HF 强制监听 7860 端口，Dockerfile 已处理
 - README 顶部的 HF 链接部署完成后替换为你的真实 Space 地址
 
-## 方式二：本机 + cpolar 内网穿透（面试当天演示）
+## 方式三：本机 + cpolar 内网穿透（面试当天演示）
 
 1. 启动本地服务：双击 `start.bat`（或 `./start.sh`）
 2. 注册 [cpolar](https://www.cpolar.com)（国内服务，注册免费，无需梯子），
@@ -69,7 +92,7 @@
 - [ ] cpolar 隧道在线，公网地址手机可访问
 - [ ] （可选）提前跑一次 `python main.py crawl` 让"今日更新"数字好看
 
-## 方式三：Docker Compose（有云服务器时）
+## 方式四：Docker Compose（有云服务器时）
 
 ```bash
 git clone https://github.com/FanXiaofu/job-radar.git && cd job-radar
